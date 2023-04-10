@@ -67,12 +67,12 @@ uservec:
         csrr t1, sepc
         sd t1, 24(a0)
 
-        ld sp, 8(a0)
-        ld tp, 32(a0)
-        ld t1, 0(a0)
+        ld sp, 8(a0) // top of process's kernel stack
+        ld tp, 32(a0) // saved kernel tp
+        ld t1, 0(a0) // kernel page table
         # csrw satp, t1
         # sfence.vma zero, zero
-        ld t0, 16(a0)
+        ld t0, 16(a0) // usertrap()
         jr t0
 
 .globl userret
