@@ -3,7 +3,7 @@
 #include "loader.h"
 #include "trap.h"
 #include "vm.h"
-
+#include "timer.h"
 struct proc pool[NPROC];
 __attribute__((aligned(16))) char kstack[NPROC][PAGE_SIZE];
 __attribute__((aligned(4096))) char trapframe[NPROC][TRAP_PAGE_SIZE];
@@ -65,12 +65,14 @@ found:
 	p->ustack = 0;
 	p->max_page = 0;
 	p->program_brk = 0;
-        p->heap_bottom = 0;
+    p->heap_bottom = 0;
 	memset(&p->context, 0, sizeof(p->context));
 	memset((void *)p->kstack, 0, KSTACK_SIZE);
 	memset((void *)p->trapframe, 0, TRAP_PAGE_SIZE);
 	p->context.ra = (uint64)usertrapret;
 	p->context.sp = p->kstack + KSTACK_SIZE;
+	p->stime = 0; 	// LAB1
+	memset(&p->syscall_times, 0, sizeof(unsigned int)*MAX_SYSCALL_NUM); // LAB1
 	return p;
 }
 
@@ -88,6 +90,8 @@ void scheduler(void)
 				/*
 				* LAB1: you may need to init proc start time here
 				*/
+				if(p->stime == 0)
+					p->stime = get_cycle();
 				p->state = RUNNING;
 				current_proc = p;
 				swtch(&idle.context, &p->context);
