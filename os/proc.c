@@ -4,6 +4,7 @@
 #include "trap.h"
 #include "vm.h"
 #include "queue.h"
+#include "timer.h"
 
 struct proc pool[NPROC];
 __attribute__((aligned(16))) char kstack[NPROC][PAGE_SIZE];
@@ -85,12 +86,14 @@ found:
 	p->exit_code = 0;
 	p->pagetable = uvmcreate((uint64)p->trapframe);
 	p->program_brk = 0;
-        p->heap_bottom = 0;
+    p->heap_bottom = 0;
 	memset(&p->context, 0, sizeof(p->context));
 	memset((void *)p->kstack, 0, KSTACK_SIZE);
 	memset((void *)p->trapframe, 0, TRAP_PAGE_SIZE);
 	p->context.ra = (uint64)usertrapret;
 	p->context.sp = p->kstack + KSTACK_SIZE;
+	p->stime = 0; 	// LAB1
+	memset(&p->syscall_times, 0, sizeof(unsigned int)*MAX_SYSCALL_NUM); // LAB1
 	return p;
 }
 
@@ -121,6 +124,8 @@ void scheduler()
 			panic("all app are over!\n");
 		}
 		tracef("swtich to proc %d", p - pool);
+		if(p->stime == 0)
+			p->stime = get_cycle();
 		p->state = RUNNING;
 		current_proc = p;
 		swtch(&idle.context, &p->context);
