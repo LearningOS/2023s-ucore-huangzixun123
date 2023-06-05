@@ -93,6 +93,8 @@ found:
 	p->context.ra = (uint64)usertrapret;
 	p->context.sp = p->kstack + KSTACK_SIZE;
 	p->stime = 0; 	// LAB1
+	p->prio = 16;
+	p->stride = 0;
 	memset(&p->syscall_times, 0, sizeof(unsigned int)*MAX_SYSCALL_NUM); // LAB1
 	return p;
 }
@@ -104,31 +106,31 @@ found:
 //    via swtch back to the scheduler.
 void scheduler()
 {
-	struct proc *p;
+	struct proc *p,*p_next=NULL;
 	for (;;) {
-		/*int has_proc = 0;
+		int has_proc = 0; // 0 : no process 1 : first have process 2:
+		// find the next process with min stride and runnable
 		for (p = pool; p < &pool[NPROC]; p++) {
 			if (p->state == RUNNABLE) {
-				has_proc = 1;
-				tracef("swtich to proc %d", p - pool);
-				p->state = RUNNING;
-				current_proc = p;
-				swtch(&idle.context, &p->context);
+				if(has_proc == 0){
+					has_proc = 1;
+					p_next = p;
+				}else{
+					if(p->stride < p_next->stride)
+						p_next = p;
+				}
 			}
 		}
 		if(has_proc == 0) {
 			panic("all app are over!\n");
-		}*/
-		p = fetch_task();
-		if (p == NULL) {
-			panic("all app are over!\n");
 		}
-		tracef("swtich to proc %d", p - pool);
-		if(p->stime == 0)
-			p->stime = get_cycle();
-		p->state = RUNNING;
-		current_proc = p;
-		swtch(&idle.context, &p->context);
+		tracef("swtich to proc %d", p_next - pool);
+		if(p_next->stime == 0)
+			p_next->stime = get_cycle();
+		p_next->state = RUNNING;
+		current_proc = p_next;
+		p_next->stride += BIGSTRIDE / p_next->prio;
+		swtch(&idle.context, &p_next->context);
 	}
 }
 
@@ -151,7 +153,7 @@ void sched()
 void yield()
 {
 	current_proc->state = RUNNABLE;
-	add_task(current_proc);
+	//add_task(current_proc);
 	sched();
 }
 
@@ -166,8 +168,9 @@ void freepagetable(pagetable_t pagetable, uint64 max_page)
 
 void freeproc(struct proc *p)
 {
-	if (p->pagetable)
+	if (p->pagetable){
 		freepagetable(p->pagetable, p->max_page);
+	}
 	p->pagetable = 0;
 	p->state = UNUSED;
 }
@@ -191,7 +194,7 @@ int fork()
 	np->trapframe->a0 = 0;
 	np->parent = p;
 	np->state = RUNNABLE;
-	add_task(np);
+	//add_task(np);
 	return np->pid;
 }
 
@@ -233,7 +236,7 @@ int wait(int pid, int *code)
 			return -1;
 		}
 		p->state = RUNNABLE;
-		add_task(p);
+		//add_task(p);
 		sched();
 	}
 }

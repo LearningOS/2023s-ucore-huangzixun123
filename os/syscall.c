@@ -57,7 +57,8 @@ uint64 sys_gettimeofday(uint64 val, int _tz)
 	TimeVal t;
 	t.sec = cycle / CPU_FREQ;
 	t.usec = (cycle % CPU_FREQ) * 1000000 / CPU_FREQ;
-	copyout(p->pagetable, val, (char *)&t, sizeof(TimeVal));
+	int ret = copyout(p->pagetable, val, (char *)&t, sizeof(TimeVal));
+	if(ret == -1)	return -1;
 	return 0;
 }
 
@@ -96,13 +97,31 @@ uint64 sys_wait(int pid, uint64 va)
 
 uint64 sys_spawn(uint64 va)
 {
-	// TODO: your job is to complete the sys call
-	return -1;
+	char filename[100];
+	struct proc *p = curr_proc();
+	copyinstr(p->pagetable, filename, va, 100);
+    int id = get_id_by_name(filename);
+    if (id < 0)
+        return -1;
+    struct proc *np = allocproc();
+    if (np == NULL) {
+        return -1;
+    }
+	np->parent = p;
+	np->state = RUNNABLE;
+	np->max_page = 0;
+    loader(id, np);
+    add_task(np);
+	return np->pid;
 }
 
 uint64 sys_set_priority(long long prio){
-    // TODO: your job is to complete the sys call
-    return -1;
+	if(prio <= 1)
+    	return -1;
+
+	struct proc * p = curr_proc();
+	p->prio = prio;
+	return prio;
 }
 
 
@@ -138,10 +157,14 @@ uint64 sys_mmap(void* start, unsigned long long len, int port, int flag, int fd)
 		if(vpa != 0)	return -1;
 		if (mappages(p->pagetable, va, PGSIZE, (uint64)pa,
 		     pte_flag) < 0) {
-			panic("mappages fail");
+				kfree(pa);
+				return -1;
 		}
-		p->max_page += 1;
+		uint64 page_id = ((uint64)start) / PGSIZE + i;
+		if (page_id >= p->max_page)
+			p->max_page = page_id + 1;
 	}
+
 	return 0;
 }
 
@@ -156,7 +179,6 @@ uint64 sys_munmap(void* start, unsigned long long len)
 		uint64 vpa = useraddr(p->pagetable, va);
 		if(vpa == 0)	return -1;
 		uvmunmap(p->pagetable, va, 1, 1);
-		p->max_page -= 1;
 	}
 	return 0;
 }
@@ -224,8 +246,8 @@ void syscall()
 		ret = sys_spawn(args[0]);
 		break;
 	case SYS_sbrk:
-                ret = sys_sbrk(args[0]);
-                break;
+        ret = sys_sbrk(args[0]);
+        break;
 	case SYS_mmap:
 		ret = sys_mmap((void *)args[0], (unsigned long long)args[1], (int)args[2], (int)args[3], (int)args[4]);
 		break;
@@ -237,6 +259,9 @@ void syscall()
 	*/
 	case SYS_task_info:
 		ret = sys_task_info((TaskInfo *)args[0]);
+		break;
+	case SYS_setpriority:
+		ret = sys_set_priority((long long)args[0]);
 		break;
 	default:
 		ret = -1;

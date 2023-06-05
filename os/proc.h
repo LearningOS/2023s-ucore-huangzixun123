@@ -8,6 +8,7 @@
 #define NPROC (512)
 #define FD_BUFFER_SIZE (16)
 #define MAX_SYSCALL_NUM (500)
+#define BIGSTRIDE (0xFFFFFL)
 struct file;
 
 // Saved registers for kernel context switches.
@@ -49,6 +50,8 @@ struct proc {
 	uint64 heap_bottom;
 	uint64 stime; // start time
 	unsigned int syscall_times[MAX_SYSCALL_NUM];
+	uint64 prio;
+	uint64 stride;
 };
 
 typedef enum {
